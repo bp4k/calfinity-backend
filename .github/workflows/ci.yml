@@ -1,0 +1,36 @@
+name: Java CI
+# Compiles the backend and runs every test under src/test/java.
+# Tests use the H2 in-memory configuration in src/test/resources/application.properties.
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  # checkout needs read access to fetch the repo, and declaring it keeps the workflow
+  # working if those defaults are later tightened while ensuring it does not get write access.
+  contents: read
+
+concurrency:
+  group: java-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compile-and-test:
+    name: Compile and Test Backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4.2.2
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4.5.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Compile and run all backend tests
+        run: ./mvnw --batch-mode --no-transfer-progress test
