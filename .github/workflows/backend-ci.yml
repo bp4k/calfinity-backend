@@ -1,11 +1,9 @@
-name: Java CI
-# Compiles the backend and runs every test under src/test/java.
-# Tests use the H2 in-memory configuration in src/test/resources/application.properties.
+name: Backend CI
 on:
   push:
-    branches: [master]
+    branches: [main]
   pull_request:
-    branches: [master]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -24,13 +22,13 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v4
 
       - name: Set up Java 21
-        uses: actions/setup-java@v4.5.0
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
           cache: maven
-      - name: Compile and run all backend tests
-        run: ./mvnw --batch-mode --no-transfer-progress test
+      - name: Build and verify backend
+        run: ./mvnw --batch-mode clean verify
