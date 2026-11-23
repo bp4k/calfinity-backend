@@ -29,6 +29,19 @@ PORT=8081 ./mvnw spring-boot:run
 Google Cloud Run supplies `PORT` at runtime. Google Cloud Build can build the
 Maven project using Google Cloud Buildpacks; the GitHub Actions workflow runs
 CI only.
+
+## Calendar persistence
+
+Calendar persistence uses Spring Data JPA with PostgreSQL, a straightforward
+choice for a new Cloud SQL database. Configure `DATABASE_URL`,
+`DATABASE_USERNAME`, and `DATABASE_PASSWORD` in the environment before starting
+the application. `DATABASE_URL` must be a PostgreSQL JDBC URL; Cloud Run's
+Cloud SQL connection should be configured to make the instance reachable to the
+application.
+
+The database schema must be provisioned before the application uses the
+calendar repository. Hibernate schema auto-creation is intentionally not
+enabled.
 # LocationLens
 ## Command to start and run Docker
 
