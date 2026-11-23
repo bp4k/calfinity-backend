@@ -16,7 +16,6 @@ import jakarta.persistence.Table;
 import net.bp4k.locationlens.enums.CalendarType;
 
 @Entity
-@Lombok 
 @Table(name = "calendars")
 public class CalendarEntity {
 
