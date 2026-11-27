@@ -21,20 +21,20 @@ public class CalendarEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(nullable = false, updatable = false)
+    @Column(nullable = false, updatable = false, length = 36)
     private String id;
 
-    @Column(name = "owner_id", nullable = false)
+    @Column(name = "owner_id", nullable = false, length = 255)
     private String ownerId;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 255)
     private String name;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "calendar_type", nullable = false)
+    @Column(name = "calendar_type", nullable = false, length = 16)
     private CalendarType type;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 7)
     private String color;
 
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -82,6 +82,10 @@ public class CalendarEntity {
 
     public String getOwnerId() {
         return ownerId;
+    }
+
+    public boolean isDeleted() {
+        return deletedAt != null;
     }
 
     public String getName() {
