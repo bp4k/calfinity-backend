@@ -4,10 +4,16 @@ import static org.springframework.security.test.web.servlet.request
         .SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders
         .get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+        .post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers
+        .header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers
         .jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers
         .status;
+
+import static org.hamcrest.Matchers.containsString;
 
 import java.time.Instant;
 
@@ -17,6 +23,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import net.bp4k.locationlens.entity.CalendarEntity;
@@ -108,5 +115,134 @@ class CalendarControllerTest {
     private CalendarEntity saveCalendar(String ownerId, CalendarType type) {
         return calendarRepository.saveAndFlush(new CalendarEntity(
                 ownerId, "Test calendar", type, "#123456"));
+    }
+
+    @Test
+    void createCalendarRequiresBearerAuthentication() throws Exception {
+        mockMvc.perform(post(CALENDAR_PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"Personal","type":"PERSONAL"}
+                                """))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void createDefaultsColorAndReturnsCreatedOwnerResponse() throws Exception {
+        mockMvc.perform(post(CALENDAR_PATH)
+                        .with(jwt().jwt(token -> token.subject(USER_ID)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"  Personal  ","type":"PERSONAL"}
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(header().string(
+                        "Location", containsString(CALENDAR_PATH + "/")))
+                .andExpect(jsonPath("$.id").isNotEmpty())
+                .andExpect(jsonPath("$.name").value("Personal"))
+                .andExpect(jsonPath("$.type").value("PERSONAL"))
+                .andExpect(jsonPath("$.color").value("#4285F4"))
+                .andExpect(jsonPath("$.currentUserRole").value("OWNER"));
+
+        mockMvc.perform(get(CALENDAR_PATH).with(jwt().jwt(
+                        token -> token.subject(USER_ID))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+    }
+
+    @Test
+    void createAcceptsAnExplicitColor() throws Exception {
+        mockMvc.perform(post(CALENDAR_PATH)
+                        .with(jwt().jwt(token -> token.subject(USER_ID)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"Work","type":"GROUP","color":"#AaBbCc"}
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.color").value("#AaBbCc"));
+    }
+
+    @Test
+    void createRejectsInvalidRequests() throws Exception {
+        String[] invalidBodies = {
+                // blank name
+                "{\"name\":\"   \",\"type\":\"GROUP\"}",
+                // missing name
+                "{\"type\":\"GROUP\"}",
+                // name longer than 255 characters
+                "{\"name\":\"" + "x".repeat(256) + "\",\"type\":\"GROUP\"}",
+                // missing type
+                "{\"name\":\"Work\"}",
+                // unknown type
+                "{\"name\":\"Work\",\"type\":\"TEAM\"}",
+                // malformed colors
+                "{\"name\":\"Work\",\"type\":\"GROUP\",\"color\":\"red\"}",
+                "{\"name\":\"Work\",\"type\":\"GROUP\",\"color\":\"#12345\"}",
+                "{\"name\":\"Work\",\"type\":\"GROUP\",\"color\":\"123456\"}",
+        };
+
+        for (String body : invalidBodies) {
+            mockMvc.perform(post(CALENDAR_PATH)
+                            .with(jwt().jwt(token -> token.subject(USER_ID)))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isBadRequest());
+        }
+
+        mockMvc.perform(post(CALENDAR_PATH)
+                        .with(jwt().jwt(token -> token.subject(USER_ID)))
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void onlyOneActivePersonalCalendarIsAllowedPerOwner() throws Exception {
+        saveCalendar(USER_ID, CalendarType.PERSONAL);
+
+        mockMvc.perform(post(CALENDAR_PATH)
+                        .with(jwt().jwt(token -> token.subject(USER_ID)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"Second","type":"PERSONAL"}
+                                """))
+                .andExpect(status().isConflict());
+
+        // Another user is unaffected by this owner's personal calendar.
+        mockMvc.perform(post(CALENDAR_PATH)
+                        .with(jwt().jwt(token -> token.subject("user-2")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"Personal","type":"PERSONAL"}
+                                """))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void deletedPersonalCalendarDoesNotBlockCreatingANewOne()
+            throws Exception {
+        CalendarEntity calendar = saveCalendar(
+                USER_ID, CalendarType.PERSONAL);
+        calendar.setDeletedAt(Instant.now());
+        calendarRepository.saveAndFlush(calendar);
+
+        mockMvc.perform(post(CALENDAR_PATH)
+                        .with(jwt().jwt(token -> token.subject(USER_ID)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"Replacement","type":"PERSONAL"}
+                                """))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void multipleGroupCalendarsAreAllowedPerOwner() throws Exception {
+        for (String name : new String[] {"Team A", "Team B"}) {
+            mockMvc.perform(post(CALENDAR_PATH)
+                            .with(jwt().jwt(token -> token.subject(USER_ID)))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"name\":\"" + name
+                                    + "\",\"type\":\"GROUP\"}"))
+                    .andExpect(status().isCreated());
+        }
     }
 }

@@ -39,6 +39,7 @@ cannot choose another user's ID.
 | Method and path | Behavior |
 | --- | --- |
 | `GET /api/v1/calendars` | Lists active calendars owned by or shared with the caller; an empty list is returned when there are none. |
+| `POST /api/v1/calendars` | Creates a calendar; the creator is returned as `OWNER` and the response carries a `Location` header for the new resource. |
 
 Owned calendars are returned with the `OWNER` role, followed by calendars
 shared with the caller at their membership role. Soft-deleted calendars and
@@ -46,7 +47,13 @@ revoked (soft-deleted) memberships are excluded. Shared access is read from
 active `calendar_memberships` records; this API does not yet include an
 endpoint to create or manage those memberships. Duplicate calendar/user
 membership rows are prevented by a database constraint. The remaining CRUD
-endpoints (read one, create, update, delete) land in follow-up changes.
+endpoints (read one, update, delete) land in follow-up changes.
+
+On create, names are trimmed and must be non-blank and at most 255
+characters. Colors must be `#RRGGBB`; omitting color uses `#4285F4`. Only one
+active personal calendar is allowed per owner (enforced both in the service
+and by a partial unique index); soft-deleted personal calendars do not count
+against the limit.
 
 ## Calendar persistence
 
